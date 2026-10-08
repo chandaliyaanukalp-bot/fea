@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StudyDeck</title>
+<style>
+:root{--bg:#f7f8fa;--surface:#fff;--text:#15181d;--muted:#6d7480;--line:#e5e8ec;--accent:#5b67e8;--accent2:#eef0ff;--good:#15945c;--bad:#df3d48;--shadow:0 12px 35px rgba(20,25,35,.07)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+header{height:68px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 max(20px,calc((100vw - 1120px)/2));gap:28px;position:sticky;top:0;z-index:10}
+.logo{font-weight:800;font-size:20px}.logo span{color:var(--accent)}nav{display:flex;gap:3px;flex:1}nav button,.profile{border:0;background:transparent;padding:9px 12px;border-radius:9px;color:var(--muted)}nav button:hover,nav button.active,.profile:hover{background:#f1f3f6;color:var(--text)}
+main{max-width:1120px;margin:auto;padding:36px 20px 80px}.hero{margin-bottom:28px}.hero h1{font-size:36px;margin:0 0 7px;letter-spacing:-.7px}.muted{color:var(--muted)}h2{margin:0 0 15px}h3{margin:0 0 8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:19px;box-shadow:var(--shadow)}.deck{transition:.16s}.deck:hover{transform:translateY(-2px);border-color:#cbd0da}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.between{justify-content:space-between}.stats{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0}.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 18px;min-width:130px}.stat strong{display:block;font-size:25px}
+.primary,.secondary,.danger{border-radius:10px;padding:10px 15px;border:1px solid transparent;font-weight:700}.primary{background:var(--accent);color:#fff}.secondary{background:#fff;border-color:var(--line);color:var(--text)}.danger{background:#fff1f2;border-color:#ffd5d8;color:var(--bad)}
+.drop{background:#fff;border:1.5px dashed #cfd5de;border-radius:18px;padding:48px;text-align:center}.file{display:inline-block;background:var(--accent);color:white;padding:11px 16px;border-radius:10px;font-weight:700;cursor:pointer}.file input{display:none}
+.auth{max-width:410px;margin:60px auto}.auth .card{padding:28px}.input{width:100%;padding:12px 13px;margin:6px 0 13px;border:1px solid var(--line);border-radius:10px;outline:0;background:#fff}.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
+.flash{max-width:690px;min-height:350px;margin:30px auto 15px;background:#262a30;color:#fff;border-radius:28px;padding:28px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;box-shadow:0 18px 50px rgba(0,0,0,.12)}.flash .question{font-size:29px;line-height:1.45;margin:auto 0}.flash .answer{font-size:23px;line-height:1.5;margin:auto 0}.flash .hint{color:#9ea5ae;font-size:13px}
+.controls{display:flex;justify-content:center;gap:10px}.circle{width:55px;height:55px;border-radius:50%;background:#fff;border:1px solid var(--line);font-size:21px}.circle.good{color:var(--good)}.circle.bad{color:var(--bad)}.circle.selectedGood{box-shadow:0 0 0 2px var(--good) inset}.circle.selectedBad{box-shadow:0 0 0 2px var(--bad) inset}
+.modal{position:fixed;inset:0;background:#0008;display:grid;place-items:center;padding:20px;z-index:30}.modalbox{background:#fff;border-radius:16px;padding:25px;max-width:430px;width:100%}
+.toast{position:fixed;bottom:22px;right:22px;background:#1c2129;color:#fff;padding:12px 15px;border-radius:10px;z-index:40}
+@media(max-width:650px){header{padding:0 12px;gap:8px}nav button{display:none}main{padding:25px 14px}.hero h1{font-size:29px}.flash{min-height:310px}.flash .question{font-size:23px}}
+</style>
+</head>
+<body>
+<header><div class="logo">Study<span>Deck</span></div><nav id="nav"></nav><div id="account"></div></header>
+<main id="app"></main><div id="toast" class="toast hidden"></div>
+<script>
+let me=null,decks=[],current=null,index=0,flipped=false,progress=[];
+const $=s=>document.querySelector(s), app=$("#app");
+const esc=s=>String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+async function api(url,opt={}){let r=await fetch(url,{credentials:"include",...opt});let j={};try{j=await r.json()}catch{}if(!r.ok)throw Error(j.error||"Request failed");return j}
+function toast(t){$("#toast").textContent=t;$("#toast").classList.remove("hidden");setTimeout(()=>$("#toast").classList.add("hidden"),2300)}
+async function init(){try{me=(await api("/api/me")).user;await loadDecks();dashboard()}catch{login()}}
+async function loadDecks(){decks=await api("/api/decks")}
+function header(active="home"){ $("#nav").innerHTML=me?`<button class="${active==="home"?"active":""}" onclick="dashboard()">Dashboard</button><button class="${active==="decks"?"active":""}" onclick="deckLibrary()">My decks</button><button class="${active==="import"?"active":""}" onclick="importPage()">Import CSV</button>`:"";$("#account").innerHTML=me?`<button class="profile" onclick="logout()">👤 ${esc(me.username)} · Logout</button>`:""}
+function dashboard(){header("home");app.innerHTML=`<section class="hero"><h1>Study smarter.</h1><p class="muted">Your flashcards, progress and decks — synced to your account.</p></section><div class="stats"><div class="stat"><strong>${decks.length}</strong>Decks</div><div class="stat"><strong>${decks.reduce((n,d)=>n+d.cards,0)}</strong>Cards</div></div><div class="row between"><h2>Your decks</h2><button class="primary" onclick="importPage()">＋ Import CSV</button></div><div class="grid">${decks.length?decks.map(d=>`<article class="card deck"><h3>${esc(d.name)}</h3><p class="muted">${d.cards} cards</p><div class="row"><button class="primary" onclick="study('${d.id}')">Study</button><button class="danger" onclick="deleteDeck('${d.id}','${esc(d.name)}')">Delete</button></div></article>`).join(""):`<div class="card"><h3>No decks yet</h3><p class="muted">Import your first CSV to start studying.</p></div>`}</div>`}
+function deckLibrary(){dashboard()}
+function importPage(){header("import");app.innerHTML=`<section class="hero"><h1>Import a deck</h1><p class="muted">Upload a CSV with two columns: <b>question,answer</b>.</p></section><div class="drop"><p>Choose a CSV file to upload to your account.</p><label class="file">Select CSV<input id="csv" type="file" accept=".csv,text/csv" onchange="uploadCSV(this.files[0])"></label><p class="muted">Example: <code>Capital of Canada?,Ottawa</code></p></div>`}
+async function uploadCSV(file){if(!file)return;let name=prompt("Deck name (optional):",file.name.replace(/\.csv$/i,""));if(name===null)return;let fd=new FormData();fd.append("file",file);fd.append("name",name);try{let d=await api("/api/decks/import",{method:"POST",body:fd});toast(`Imported ${d.cards} cards`);await loadDecks();study(d.id)}catch(e){toast(e.message)}}
+async function study(id){current=await api("/api/decks/"+id);index=0;flipped=false;progress=current.progress||Array(current.cards.length).fill(0);renderCard()}
+function renderCard(){header();let c=current.cards[index];app.innerHTML=`<div class="row between"><button class="secondary" onclick="dashboard()">← Back</button><span class="muted">${index+1} / ${current.cards.length}</span></div><div class="flash" onclick="flip()"><div class="hint">${flipped?"ANSWER":"QUESTION"} · Click to flip</div><div class="${flipped?"answer":"question"}">${esc(flipped?c.answer:c.question)}</div><div class="hint">${flipped?"Click to flip back":"See answer"}</div></div><div class="controls"><button class="circle" onclick="prev()">←</button><button class="circle bad ${progress[index]===-1?"selectedBad":""}" onclick="mark(-1)">×</button><button class="circle good ${progress[index]===1?"selectedGood":""}" onclick="mark(1)">✓</button><button class="circle" onclick="next()">→</button></div><div class="row" style="justify-content:center;margin-top:14px"><button class="secondary" onclick="shuffle()">🔀 Shuffle</button><button class="secondary" onclick="resetProgress()">Reset</button></div>`}
+function flip(){flipped=!flipped;renderCard()}function next(){index=(index+1)%current.cards.length;flipped=false;renderCard()}function prev(){index=(index-1+current.cards.length)%current.cards.length;flipped=false;renderCard()}
+async function mark(v){progress[index]=progress[index]===v?0:v;try{await api("/api/decks/"+current.id+"/progress",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({progress})});renderCard()}catch(e){toast(e.message)}}
+async function resetProgress(){progress=Array(current.cards.length).fill(0);await api("/api/decks/"+current.id+"/progress",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({progress})});renderCard()}
+function shuffle(){for(let i=current.cards.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[current.cards[i],current.cards[j]]=[current.cards[j],current.cards[i]]}progress=Array(current.cards.length).fill(0);index=0;flipped=false;renderCard()}
+async function deleteDeck(id,name){if(!confirm(`Delete "${name}"? This cannot be undone.`))return;try{await api("/api/decks/"+id,{method:"DELETE"});toast("Deck deleted");await loadDecks();dashboard()}catch(e){toast(e.message)}}
+function authPage(register=false){header();app.innerHTML=`<div class="auth"><div class="card"><h1>${register?"Create account":"Welcome back"}</h1><p class="muted">${register?"Create a secure server account.":"Log in to sync your decks and progress."}</p><input class="input" id="u" placeholder="Username" autocomplete="username"><input class="input" id="p" type="password" placeholder="Password" autocomplete="${register?"new-password":"current-password"}"><button class="primary" style="width:100%" onclick="${register?"register()":"loginSubmit()"}">${register?"Create account":"Log in"}</button><p class="muted" style="margin-top:18px">${register?"Already have an account?":"New here?"} <button class="secondary" onclick="${register?"login()":"register()"}">${register?"Log in":"Create account"}</button></p></div></div>`}
+function login(){authPage(false)}function register(){authPage(true)}
+async function loginSubmit(){try{me=(await api("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:$("#u").value,password:$("#p").value})})).user;await loadDecks();dashboard()}catch(e){toast(e.message)}}
+async function register(){if(!$("#u"))return authPage(true);try{me=(await api("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:$("#u").value,password:$("#p").value})})).user;await loadDecks();dashboard()}catch(e){toast(e.message)}}
+async function logout(){await api("/api/logout",{method:"POST"});me=null;decks=[];login()}
+document.addEventListener("keydown",e=>{if(!current||!$(".flash"))return;if(e.code==="Space"){e.preventDefault();flip()}else if(e.key==="ArrowRight")next();else if(e.key==="ArrowLeft")prev()});
+init();
+</script></body></html>
